@@ -114,13 +114,20 @@ void Render::draw(Board::Board *b)
         {
             SDL_Rect destRect = getPieceDestRect(&boardRect, i);
             SDL_Rect srcRect  = getPieceSrcRect(p);
+            if (hoveredPiece != Pieces::BLANK && i == hoveredTile)
+                SDL_SetTextureAlphaMod(textures.pieces, 0x80);
             SDL_RenderCopy(render, textures.pieces, &srcRect, &destRect);
+            if (hoveredPiece != Pieces::BLANK && i == hoveredTile)
+                SDL_SetTextureAlphaMod(textures.pieces, 0xff);
         }
     }
 
     // draw hovered piece
     if (mouseTile < 64 && lmb == PRESSED)
+    {
         hoveredPiece = Board::getPiece(b, mouseTile);
+        hoveredTile  = mouseTile;
+    }
 
     if ((hoveredPiece & 0x7f) != Pieces::BLANK &&
         (lmb == PRESSED || lmb == DOWN))
@@ -133,6 +140,12 @@ void Render::draw(Board::Board *b)
         };
         SDL_Rect pieceRect = getPieceSrcRect(hoveredPiece);
         SDL_RenderCopy(render, textures.pieces, &pieceRect, &dragPieceRect);
+    }
+
+    // report move attempt
+    if (lmb == RELEASED && mouseTile < 64 && hoveredPiece != Pieces::BLANK)
+    {
+        Board::movePiece(b, hoveredTile, mouseTile);
     }
 
     const uint8_t background = 0x0f;

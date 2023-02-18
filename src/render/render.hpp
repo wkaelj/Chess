@@ -65,6 +65,7 @@ class Render
     int pixelScale; // the amount the hdpi monitor scales for pixels
 
     Piece hoveredPiece;
+    uint8_t hoveredTile; // the tile the hovered piece was on
 
     bool shouldQuit;
 
