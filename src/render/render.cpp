@@ -4,6 +4,8 @@
 #include <cmath>
 
 #include <SDL2/SDL_mouse.h>
+#include <SDL2/SDL_audio.h>
+#include "sdl_system.hpp"
 
 Render::Render(
     const char *boardTexture,
@@ -17,9 +19,10 @@ Render::Render(
     playerColour = colour;
     lmb = UP, rmb = UP;
     shouldQuit   = false;
+    audio        = true;
     hoveredPiece = Pieces::BLANK;
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0)
+    if (SDL_System::initSDL(SDL_INIT_VIDEO) < 0)
     {
         printf("Failed to initialize SDL! Error: %s\n", SDL_GetError());
         return;
@@ -70,7 +73,6 @@ Render::~Render()
     SDL_DestroyRenderer(render);
     SDL_DestroyWindow(window);
     IMG_Quit();
-    SDL_Quit();
 }
 
 #define array_length(array) (sizeof(array) / sizeof(array[0]))

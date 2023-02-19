@@ -7,7 +7,7 @@ namespace Moves
 {
 
 // assert a position is within the board
-bool withinBoard(uint8_t position) { return position >= 0 && position < 64; }
+bool withinBoard(uint8_t position) { return position < 64; }
 
 // check if a move up or down a column is legal
 bool legalColumn(Board::Board *b, Move m)

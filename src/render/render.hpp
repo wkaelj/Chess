@@ -68,6 +68,7 @@ class Render
     uint8_t hoveredTile; // the tile the hovered piece was on
 
     bool shouldQuit;
+    bool audio;
 
     SDL_Rect boardRect;
 
