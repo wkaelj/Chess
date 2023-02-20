@@ -12,7 +12,7 @@ Sound::Sound(const char *wavPath)
 
 Sound::~Sound() { Mix_FreeChunk(c); }
 
-void Sound::play() { Mix_PlayChannel(-1, c, 1); }
+void Sound::play() { Mix_PlayChannel(-1, c, 0); }
 
 Music::Music(const char *wavPath) : m{NULL}
 {

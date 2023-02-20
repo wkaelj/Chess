@@ -8,6 +8,7 @@
 #include <SDL2/SDL_image.h>
 
 #include "../board.hpp"
+#include "../moves.hpp"
 
 #include <vector>
 
@@ -18,6 +19,7 @@ class Render
         const char *boardTexture,
         const char *pieceTexture,
         const char *hoverTexture,
+        const char *legalMoveTexture,
         Pieces::Colour colour);
     ~Render();
 
@@ -60,12 +62,19 @@ class Render
     };
 
     int mouseCoordinate[2];
+    const static size_t MOUSE_AVERAGE_SIZE = 50;
+    int mouseAverage[MOUSE_AVERAGE_SIZE]; // average position of the mouse x
+                                          // axis
+    size_t mouseAverageIndex;
     ButtonState rmb, lmb; // true if button pressed last frame
 
     int pixelScale; // the amount the hdpi monitor scales for pixels
 
     Piece hoveredPiece;
     uint8_t hoveredTile; // the tile the hovered piece was on
+
+    Board::Position legalMoves[64];
+    size_t legalMoveCount;
 
     bool shouldQuit;
     bool audio;
@@ -78,5 +87,6 @@ class Render
         SDL_Texture *board;
         SDL_Texture *pieces;
         SDL_Texture *hover;
+        SDL_Texture *legalMove;
     } textures;
 };

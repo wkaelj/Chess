@@ -6,108 +6,187 @@
 namespace Moves
 {
 
+bool withinBoaed(int8_t position);
+size_t getLegalColumn(
+    Board::Board *b,
+    Board::Position p,
+    Board::Position *moves,
+    size_t *moveIndex);
+size_t getLegalRow(
+    Board::Board *b,
+    Board::Position position,
+    Board::Position *moves,
+    size_t *moveIndex);
+size_t getLegalDiagonals(
+    Board::Board *b,
+    Board::Position position,
+    Board::Position *moves,
+    size_t *moveIndex);
+
+size_t getLegalMoves(Board::Board *b, Board::Position p, Board::Position *moves)
+{
+    size_t movesIndex = 0;
+    getLegalColumn(b, p, moves, &movesIndex);
+    getLegalRow(b, p, moves, &movesIndex);
+    getLegalDiagonals(b, p, moves, &movesIndex);
+    return movesIndex;
+}
+
+bool move(Board::Board *b, Move m, Board::Position *moves, size_t moveCount)
+{
+
+    for (size_t i = 0; i < moveCount; i++)
+    {
+        if (moves[i] == m[1])
+        {
+            // sounds
+            if ((Board::getPiece(b, m[1]) & 0x7f) != Pieces::BLANK)
+            {
+                if (b->sounds.capture)
+                    b->sounds.capture->play();
+            }
+            else
+            {
+                if (b->sounds.move)
+                    b->sounds.move->play();
+            }
+            Board::movePiece(b, m[0], m[1]);
+            b->lastMove[0] = m[0];
+            b->lastMove[1] = m[1];
+            return true;
+        }
+    }
+    return false;
+}
+
+//
+// helpers
+//
+
 // assert a position is within the board
-bool withinBoard(uint8_t position) { return position < 64; }
+bool withinBoard(int8_t position) { return position >= 0 && position < 64; }
 
-// check if a move up or down a column is legal
-bool legalColumn(Board::Board *b, Move m)
+// if true stop looping
+bool checkIntercept(
+    Board::Board *b,
+    Board::Position p,
+    Pieces::Colour c,
+    Board::Position *moves,
+    size_t *moveIndex)
 {
-    // ensure pieces are on the same column
-    if (m[1] % 8 != m[0] % 8)
-        return false;
-
-    Piece p = Board::getPiece(b, m[0]);
-
-    if (m[1] > m[0])
+    Piece piece = Board::getPiece(b, p);
+    if (piece == Pieces::BLANK)
     {
-        for (uint8_t i = m[0] + 8; i < m[1] && withinBoard(i); i += 8)
-        {
-            if (Board::getPiece(b, i) != Pieces::BLANK)
-                return false;
-        }
+        if (moves)
+            moves[*moveIndex] = p;
+        *moveIndex += 1;
+        return false;
     }
     else
     {
-        for (uint8_t i = m[0] - 8; i > m[1] && withinBoard(i); i -= 8)
+        // if a capture is legal, add it then exit the loop
+        if (Pieces::getColour(p) != c)
         {
-            if (Board::getPiece(b, i) != Pieces::BLANK)
-                return false;
+            if (moves)
+                moves[*moveIndex] = p;
+            *moveIndex += 1;
         }
+        return true;
     }
-
-    // cannot capture if the peice is the same colour
-    if (Pieces::getColour(Board::getPiece(b, m[1])) == Pieces::getColour(p))
-        return false;
-
-    return true;
 }
 
-bool legalRow(Board::Board *b, Move m)
+size_t getLegalColumn(
+    Board::Board *b,
+    Board::Position p,
+    Board::Position *moves,
+    size_t *moveIndex)
 {
-    // find the number of squares on the right and left of initial square
-    int8_t left = -(m[0] % 8), right = 8 - (m[0] % 8);
+    assert(b && moveIndex);
+    assert(*moveIndex < 64);
+    Pieces::Colour pieceColour = Pieces::getColour(Board::getPiece(b, p));
 
-    assert((m[0] + left) % 8 == 0);
-    assert((m[0] + right) % 8 == 0);
-
-    int8_t diff = m[1] - m[0];
-
-    // move must be within the right and left
-    if (diff > right && diff < left)
-        return false;
-
-    if (diff > 0)
+    // count moves down
+    for (uint8_t i = p + 8; withinBoard(i); i += 8)
     {
-        for (uint8_t i = m[0]; i < m[1]; i++)
-            if (Board::getPiece(b, i) != Pieces::BLANK)
-                return false;
-    }
-    else
-    {
-        for (uint8_t i = m[0]; i > m[1]; i--)
-            if (Board::getPiece(b, i) != Pieces::BLANK)
-                return false;
-    }
-
-    // cannot take square of same colour
-    if (Pieces::getColour(Board::getPiece(b, m[1])) ==
-        Pieces::getColour(Board::getPiece(b, m[0])))
-        return false;
-
-    return true;
-}
-
-bool legalDiagonal(Board::Board *b, Move m)
-{
-    // final position must be within board
-    if (!withinBoard(m[1]))
-        return false;
-
-    int8_t diff = m[1] - m[0];
-
-    if (diff % 7 != 0 && diff % 9 != 0)
-        return false;
-
-    return true;
-}
-
-bool isLegal(Board::Board *b, Move m)
-{
-    // cannot move to same square
-    if (m[1] == m[0])
-        return false;
-
-    Piece movedPiece    = Board::getPiece(b, m[0]);
-    Piece capturedPiece = Board::getPiece(b, m[1]);
-
-    switch (movedPiece & 0x7f)
-    {
-    case Pieces::PAWN:
-        if (1)
+        if (checkIntercept(b, i, pieceColour, moves, moveIndex))
             break;
     }
 
-    return false;
+    // count moves up
+    for (int8_t i = p - 8; withinBoard(i); i -= 8)
+    {
+        if (checkIntercept(b, i, pieceColour, moves, moveIndex))
+            break;
+    }
+    return *moveIndex; // return number of legal moves
+}
+
+size_t getLegalRow(
+    Board::Board *b,
+    Board::Position position,
+    Board::Position *moves,
+    size_t *moveIndex)
+{
+    assert(b && moveIndex);
+    assert(*moveIndex < 64);
+
+    Pieces::Colour pieceColour =
+        Pieces::getColour(Board::getPiece(b, position));
+
+    // count moves right
+    for (int8_t i = position + 1;
+         position % 8 != 7 && i % 8 != 0 && withinBoard(i);
+         i++)
+    {
+        if (checkIntercept(b, i, pieceColour, moves, moveIndex))
+            break;
+    }
+
+    // count moves left
+    for (int8_t i = position - 1;
+         (position % 8 != 0) && (i % 8 != 7) && withinBoard(i);
+         i--)
+    {
+        if (checkIntercept(b, i, pieceColour, moves, moveIndex))
+            break;
+    }
+    return *moveIndex; // return number of legal moves
+}
+
+size_t getLegalDiagonals(
+    Board::Board *b,
+    Board::Position position,
+    Board::Position *moves,
+    size_t *moveIndex)
+{
+    Pieces::Colour pieceColour =
+        Pieces::getColour(Board::getPiece(b, position)); // down and right
+
+    // down right
+    for (int8_t i = position + 9; i % 8 != 0 && withinBoard(i); i += 9)
+    {
+        if (checkIntercept(b, i, pieceColour, moves, moveIndex))
+            break;
+    }
+    // up left
+    for (int8_t i = position - 9; i % 8 != 7 && withinBoard(i); i -= 9)
+    {
+        if (checkIntercept(b, i, pieceColour, moves, moveIndex))
+            break;
+    }
+    // down left
+    for (int8_t i = position + 7; i % 8 != 7 && withinBoard(i); i += 7)
+    {
+        if (checkIntercept(b, i, pieceColour, moves, moveIndex))
+            break;
+    }
+    // up right
+    for (int8_t i = position - 7; i % 8 != 0 && withinBoard(i); i -= 7)
+    {
+        if (checkIntercept(b, i, pieceColour, moves, moveIndex))
+            break;
+    }
+    return 0;
 }
 
 } // namespace Moves

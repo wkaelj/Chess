@@ -8,52 +8,32 @@
 
 int main(int argc, char **argv)
 {
-    printf("Hello World\n");
-
     assert(Audio::System::init() == 0);
 
-    Audio::Sound check{"./sounds/move.wav"};
+    Audio::Sound move{"./sounds/move.wav"};
+    Audio::Sound capture{"./sounds/capture.wav"};
     Audio::Music fight{"./sounds/music_fight.mp3"};
     Audio::Music bass{"./sounds/music_bass.mp3"};
 
     fight.setVolume(MIX_MAX_VOLUME);
     bass.setVolume(MIX_MAX_VOLUME / 8);
-    bass.play();
+    // bass.play();
 
-    Board::Board b;
+    Board::Board b = Board::createBoard(&move, &capture, NULL);
 
-    b.lastMove[0] = 3;
-    b.lastMove[1] = 4;
-
-    Board::setPiece(&b, 17, Pieces::QUEEN & 0x7f);
+    Board::setPiece(&b, 17, Pieces::ROOK & 0x7f);
     Board::setPiece(&b, 63, Pieces::KING & 0x7f);
-    Board::setPiece(&b, 6, Pieces::KNIGHT & 0x7f);
-
-    for (uint i = 0; i < 64; i++)
-    {
-        printf("[%d]", b.tiles[i]);
-        if (i % 8 == 0)
-            printf("\n");
-    }
-    printf("\n");
+    Board::setPiece(&b, 6, Pieces::KNIGHT | 0x80);
 
     Render render{
-        "./textures/board.png",
-        "./textures/pieces.png",
-        "./textures/hover.png",
+        "/home/kael/Code/Chess/textures/board.png",
+        "/home/kael/Code/Chess/textures/pieces.png",
+        "/home/kael/Code/Chess/textures/hover.png",
+        "/home/kael/Code/Chess/textures/legal_move.png",
         Pieces::Colour::WHITE};
-
-    int counter = 0;
-
-    int switchTime = SDL_GetTicks() + 5000;
 
     while (render.quit() == false)
     {
-        if (SDL_GetTicks() >= switchTime && SDL_GetTicks() <= switchTime + 50)
-        {
-            printf("Switching songs\n");
-            fight.play();
-        }
         render.draw(&b);
         render.pollEvents();
     }

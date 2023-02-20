@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "render/audio.hpp"
+
 typedef int8_t Piece;
 
 namespace Pieces
@@ -30,7 +32,7 @@ enum Colour
 };
 
 // get the colour of a piece
-inline bool getColour(Piece p) { return p & 0x80; }
+inline Pieces::Colour getColour(Piece p) { return (p & 0x80) ? WHITE : BLACK; }
 
 // set the colour of a piece
 inline void setColour(Piece *p, Colour c)
@@ -58,16 +60,19 @@ Board goes from left to right and up
 */
 struct Board
 {
-    Board()
-    {
-        for (uint8_t i = 0; i < 64; i++)
-            tiles[i] = Pieces::BLANK;
-        lastMove[0] = UINT8_MAX;
-        lastMove[1] = UINT8_MAX;
-    }
     uint8_t tiles[64];
     Position lastMove[2];
+
+    struct
+    {
+        Audio::Sound *move;
+        Audio::Sound *capture;
+        Audio::Sound *check;
+    } sounds;
 };
+
+Board createBoard(
+    Audio::Sound *move, Audio::Sound *capture, Audio::Sound *check);
 
 // create a checksum of the board in order to verify moves online
 int generateChecksum(Board *b);

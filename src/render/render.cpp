@@ -11,6 +11,7 @@ Render::Render(
     const char *boardTexture,
     const char *pieceTexture,
     const char *hoverTexture,
+    const char *legalMoveTexture,
     Pieces::Colour colour)
 {
     assert(boardTexture);
@@ -18,9 +19,11 @@ Render::Render(
     mouseCoordinate[0] = 0, mouseCoordinate[1] = 0;
     playerColour = colour;
     lmb = UP, rmb = UP;
-    shouldQuit   = false;
-    audio        = true;
-    hoveredPiece = Pieces::BLANK;
+    shouldQuit        = false;
+    audio             = true;
+    hoveredPiece      = Pieces::BLANK;
+    legalMoveCount    = 0;
+    mouseAverageIndex = 0;
 
     if (SDL_System::initSDL(SDL_INIT_VIDEO) < 0)
     {
@@ -58,9 +61,11 @@ Render::Render(
     SDL_SetRenderDrawBlendMode(render, SDL_BLENDMODE_BLEND);
 
     // load piece textures
-    textures.board  = IMG_LoadTexture(render, boardTexture);
-    textures.pieces = IMG_LoadTexture(render, pieceTexture);
-    textures.hover  = IMG_LoadTexture(render, hoverTexture);
+    textures.board     = IMG_LoadTexture(render, boardTexture);
+    textures.pieces    = IMG_LoadTexture(render, pieceTexture);
+    textures.hover     = IMG_LoadTexture(render, hoverTexture);
+    textures.legalMove = IMG_LoadTexture(render, legalMoveTexture);
+    SDL_SetTextureAlphaMod(textures.legalMove, 0x80);
     assert(textures.board && textures.pieces);
 
     // SDL_RenderPresent(render);
@@ -99,7 +104,7 @@ void Render::draw(Board::Board *b)
     }
 
     // highlight mouse hover
-    uint mouseTile = getMouseTile();
+    uint8_t mouseTile = getMouseTile();
     if (mouseTile < 64)
     {
         SDL_Rect mouseRect = getPieceDestRect(&boardRect, mouseTile);
@@ -124,13 +129,37 @@ void Render::draw(Board::Board *b)
         }
     }
 
-    // draw hovered piece
+    // get hovered piece
     if (mouseTile < 64 && lmb == PRESSED)
     {
         hoveredPiece = Board::getPiece(b, mouseTile);
         hoveredTile  = mouseTile;
+        if (hoveredPiece != Pieces::BLANK)
+        {
+            legalMoveCount = Moves::getLegalMoves(b, mouseTile, legalMoves);
+        }
     }
 
+    // report move attempt
+    if (lmb == RELEASED && mouseTile < 64 && hoveredPiece != Pieces::BLANK)
+    {
+        if (mouseTile != hoveredTile)
+        {
+            Moves::Move m = {hoveredTile, mouseTile};
+            Moves::move(b, m, legalMoves, legalMoveCount);
+        }
+        hoveredPiece   = Pieces::BLANK;
+        legalMoveCount = 0;
+    }
+
+    // draw legal moves
+    for (size_t i = 0; i < legalMoveCount; i++)
+    {
+        SDL_Rect tileRect = getPieceDestRect(&boardRect, legalMoves[i]);
+        SDL_RenderCopy(render, textures.legalMove, NULL, &tileRect);
+    }
+
+    // draw hovered piece
     if ((hoveredPiece & 0x7f) != Pieces::BLANK &&
         (lmb == PRESSED || lmb == DOWN))
     {
@@ -140,14 +169,29 @@ void Render::draw(Board::Board *b)
             .w = boardRect.w / 6,
             .h = boardRect.h / 6,
         };
-        SDL_Rect pieceRect = getPieceSrcRect(hoveredPiece);
-        SDL_RenderCopy(render, textures.pieces, &pieceRect, &dragPieceRect);
-    }
+        // calculate average mouse position
+        float mouseAverageTotal = 0xf;
+        for (size_t i = 0; i < MOUSE_AVERAGE_SIZE; i++)
+            mouseAverageTotal += mouseAverage[i];
+        mouseAverageTotal /= MOUSE_AVERAGE_SIZE;
 
-    // report move attempt
-    if (lmb == RELEASED && mouseTile < 64 && hoveredPiece != Pieces::BLANK)
-    {
-        Board::movePiece(b, hoveredTile, mouseTile);
+        float rotation = (mouseCoordinate[0] - mouseAverageTotal) * 1.f;
+        rotation = (90.f / (3.141592653589 / 2.f)) * atan(rotation / 32.f);
+
+        SDL_Rect pieceRect = getPieceSrcRect(hoveredPiece);
+        SDL_RenderCopyEx(
+            render,
+            textures.pieces,
+            &pieceRect,
+            &dragPieceRect,
+            rotation,
+            NULL,
+            SDL_FLIP_NONE);
+        if (mouseAverageTotal != mouseCoordinate[0])
+        {
+            mouseAverage[mouseAverageIndex] = mouseCoordinate[0];
+            mouseAverageIndex = (mouseAverageIndex + 1) % MOUSE_AVERAGE_SIZE;
+        }
     }
 
     const uint8_t background = 0x0f;
@@ -194,6 +238,8 @@ void Render::pollEvents()
                 rmb = RELEASED;
             break;
         case SDL_MOUSEMOTION:
+            mouseAverage[mouseAverageIndex] = mouseCoordinate[0];
+            mouseAverageIndex  = (mouseAverageIndex + 1) % MOUSE_AVERAGE_SIZE;
             mouseCoordinate[0] = e.motion.x;
             mouseCoordinate[1] = e.motion.y;
             break;
