@@ -138,6 +138,9 @@ void Render::draw(Board::Board *b)
         {
             legalMoveCount = Moves::getLegalMoves(b, mouseTile, legalMoves);
         }
+        // reset mouse average
+        for (size_t i = 0; i < MOUSE_AVERAGE_SIZE; i++)
+            mouseAverage[i] = mouseCoordinate[0];
     }
 
     // report move attempt
@@ -176,7 +179,7 @@ void Render::draw(Board::Board *b)
         mouseAverageTotal /= MOUSE_AVERAGE_SIZE;
 
         float rotation = (mouseCoordinate[0] - mouseAverageTotal) * 1.f;
-        rotation = (90.f / (3.141592653589 / 2.f)) * atan(rotation / 32.f);
+        rotation = (90.f / (3.141592653589f / 2.f)) * atan(rotation / 32.f);
 
         SDL_Rect pieceRect = getPieceSrcRect(hoveredPiece);
         SDL_RenderCopyEx(
@@ -187,6 +190,8 @@ void Render::draw(Board::Board *b)
             rotation,
             NULL,
             SDL_FLIP_NONE);
+
+        // slowly move average back to mouse position when mouse is stopped
         if (mouseAverageTotal != mouseCoordinate[0])
         {
             mouseAverage[mouseAverageIndex] = mouseCoordinate[0];

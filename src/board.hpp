@@ -29,6 +29,7 @@ enum Colour
 {
     BLACK = 0,
     WHITE = 1,
+    NONE,
 };
 
 // get the colour of a piece
@@ -41,6 +42,7 @@ inline void setColour(Piece *p, Colour c)
     {
     case Colour::BLACK: *p &= 0x7f; break;
     case Colour::WHITE: *p |= 0x80; break;
+    default: break;
     }
 }
 

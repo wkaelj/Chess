@@ -21,7 +21,7 @@ int main(int argc, char **argv)
 
     Board::Board b = Board::createBoard(&move, &capture, NULL);
 
-    Board::setPiece(&b, 17, Pieces::ROOK & 0x7f);
+    Board::setPiece(&b, 17, Pieces::ROOK | 0x80);
     Board::setPiece(&b, 63, Pieces::KING & 0x7f);
     Board::setPiece(&b, 6, Pieces::KNIGHT | 0x80);
 
