@@ -12,6 +12,8 @@ typedef Board::Position Move[2];
 // if moves is not NULL, the legal moves will be stored in *moves.
 size_t
 getLegalMoves(Board::Board *b, Board::Position p, Board::Position *moves);
+Pieces::Colour isCheck(Board::Board *b, Pieces::Colour colour, Move m);
+Pieces::Colour isCheck(Board::Board *b, Pieces::Colour colour);
 
 // Try to move a piece, it will return true for success.
 // you have them somewhere.

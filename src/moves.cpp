@@ -27,6 +27,16 @@ void getLegalKnightMoves(
     Board::Position position,
     Board::Position *moves,
     size_t *moveIndex);
+void getLegalKingMoves(
+    Board::Board *b,
+    Board::Position position,
+    Board::Position *moves,
+    size_t *moveIndex);
+void getLegalPawnMoves(
+    Board::Board *b,
+    Board::Position position,
+    Board::Position *moves,
+    size_t *moveIndex);
 
 Pieces::Colour isCheck(Board::Board *b, Pieces::Colour colour, Move m);
 Pieces::Colour isCheck(Board::Board *b, Pieces::Colour colour);
@@ -37,11 +47,18 @@ size_t getLegalMoves(Board::Board *b, Board::Position p, Board::Position *moves)
     Piece piece = Board::getPiece(b, p);
     switch (piece & 0x7f)
     {
+    case Pieces::PAWN: getLegalPawnMoves(b, p, moves, &movesIndex); break;
+    case Pieces::BISHOP: getLegalDiagonals(b, p, moves, &movesIndex); break;
     case Pieces::ROOK:
         getLegalColumn(b, p, moves, &movesIndex);
         getLegalRow(b, p, moves, &movesIndex);
         break;
     case Pieces::KNIGHT: getLegalKnightMoves(b, p, moves, &movesIndex); break;
+    case Pieces::KING: getLegalKingMoves(b, p, moves, &movesIndex); break;
+    case Pieces::KING_CASTLE:
+        getLegalKingMoves(b, p, moves, &movesIndex);
+        // handle castling
+        break;
     default:
         getLegalColumn(b, p, moves, &movesIndex);
         getLegalRow(b, p, moves, &movesIndex);
@@ -104,7 +121,7 @@ Pieces::Colour isCheck(Board::Board *b, Pieces::Colour colour, Move m)
 {
     // make the move being tested, and store it so it can be moved back
     // this will probably cause a ton of problems in the future
-    Piece capturedPiece;
+    Piece capturedPiece = Pieces::BLANK;
     if (m[0] < 64 && m[1] < 64)
     {
         capturedPiece = Board::getPiece(b, m[1]);
@@ -276,7 +293,8 @@ void getLegalDiagonals(
     }
 }
 
-void handleKnightMove(
+// check if a square can be moved to, and if so add it to the move list
+void handleMoveSquare(
     Board::Board *b,
     Board::Position position,
     Board::Position *moves,
@@ -284,8 +302,12 @@ void handleKnightMove(
     Pieces::Colour pieceColour,
     uint8_t move)
 {
-    if (withinBoard(position + move) &&
-        Pieces::getColour(Board::getPiece(b, position + move)) != pieceColour)
+    // ensure move is within board, and does not wrap corner
+    if (!withinBoard(position + move))
+        return;
+
+    Piece p = Board::getPiece(b, position + move);
+    if (p == Pieces::BLANK || Pieces::getColour(p) != pieceColour)
     {
         moves[*moveIndex] = position + move;
         *moveIndex += 1;
@@ -302,14 +324,28 @@ void getLegalKnightMoves(
     Pieces::Colour pieceColour =
         Pieces::getColour(Board::getPiece(b, position));
 
-    handleKnightMove(b, position, moves, moveIndex, pieceColour, 17);
-    handleKnightMove(b, position, moves, moveIndex, pieceColour, -17);
-    handleKnightMove(b, position, moves, moveIndex, pieceColour, 15);
-    handleKnightMove(b, position, moves, moveIndex, pieceColour, -15);
-    handleKnightMove(b, position, moves, moveIndex, pieceColour, 10);
-    handleKnightMove(b, position, moves, moveIndex, pieceColour, -10);
-    handleKnightMove(b, position, moves, moveIndex, pieceColour, 6);
-    handleKnightMove(b, position, moves, moveIndex, pieceColour, -6);
+    // left 2
+    if (position % 8 != 0 && position % 8 != 1)
+    {
+        handleMoveSquare(b, position, moves, moveIndex, pieceColour, -10);
+        handleMoveSquare(b, position, moves, moveIndex, pieceColour, 6);
+    }
+    if (position % 8 != 0)
+    {
+        handleMoveSquare(b, position, moves, moveIndex, pieceColour, -17);
+        handleMoveSquare(b, position, moves, moveIndex, pieceColour, 15);
+    }
+    // right
+    if (position % 8 != 7 && position % 8 != 6)
+    {
+        handleMoveSquare(b, position, moves, moveIndex, pieceColour, 10);
+        handleMoveSquare(b, position, moves, moveIndex, pieceColour, -6);
+    }
+    if (position % 8 != 7)
+    {
+        handleMoveSquare(b, position, moves, moveIndex, pieceColour, -15);
+        handleMoveSquare(b, position, moves, moveIndex, pieceColour, 17);
+    }
 }
 
 void getLegalKingMoves(
@@ -318,6 +354,46 @@ void getLegalKingMoves(
     Board::Position *moves,
     size_t *moveIndex)
 {
+    const Piece p = Board::getPiece(b, position);
+    assert((p & 0x7f) == Pieces::KING || (p & 0x7f) == Pieces::KING_CASTLE);
+
+    Pieces::Colour colour = Pieces::getColour(p);
+    handleMoveSquare(b, position, moves, moveIndex, colour, -8);
+    handleMoveSquare(b, position, moves, moveIndex, colour, 8);
+    // left
+    if (position % 8)
+    {
+        handleMoveSquare(b, position, moves, moveIndex, colour, -1);
+        handleMoveSquare(b, position, moves, moveIndex, colour, -9);
+        handleMoveSquare(b, position, moves, moveIndex, colour, 7);
+    }
+    // right
+    if (position % 8 != 7)
+    {
+        handleMoveSquare(b, position, moves, moveIndex, colour, 1);
+        handleMoveSquare(b, position, moves, moveIndex, colour, 9);
+        handleMoveSquare(b, position, moves, moveIndex, colour, -7);
+    }
+}
+
+void getLegalPawnMoves(
+    Board::Board *b,
+    Board::Position position,
+    Board::Position *moves,
+    size_t *moveIndex)
+{
+    Piece p = Board::getPiece(b, position);
+    assert((p & 0x7f) == Pieces::PAWN);
+
+    Pieces::Colour c = Pieces::getColour(p);
+    if (c == Pieces::Colour::WHITE)
+    {
+        handleMoveSquare(b, position, moves, moveIndex, c, 8);
+    }
+    if (c == Pieces::Colour::BLACK)
+    {
+        handleMoveSquare(b, position, moves, moveIndex, c, -8);
+    }
 }
 
 } // namespace Moves

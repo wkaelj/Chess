@@ -158,8 +158,15 @@ void Render::draw(Board::Board *b)
     // draw legal moves
     for (size_t i = 0; i < legalMoveCount; i++)
     {
-        SDL_Rect tileRect = getPieceDestRect(&boardRect, legalMoves[i]);
-        SDL_RenderCopy(render, textures.legalMove, NULL, &tileRect);
+        Pieces::Colour hoveredColour = Pieces::getColour(hoveredPiece);
+        Moves::Move m                = {hoveredTile, legalMoves[i]};
+
+        // don't draw moves that are check, as they will not be allowed
+        if (Moves::isCheck(b, hoveredColour, m) != hoveredColour)
+        {
+            SDL_Rect tileRect = getPieceDestRect(&boardRect, legalMoves[i]);
+            SDL_RenderCopy(render, textures.legalMove, NULL, &tileRect);
+        }
     }
 
     // draw hovered piece
@@ -182,6 +189,7 @@ void Render::draw(Board::Board *b)
         rotation = (90.f / (3.141592653589f / 2.f)) * atan(rotation / 32.f);
 
         SDL_Rect pieceRect = getPieceSrcRect(hoveredPiece);
+        SDL_SetTextureAlphaMod(textures.pieces, 64 * 3);
         SDL_RenderCopyEx(
             render,
             textures.pieces,
@@ -190,6 +198,7 @@ void Render::draw(Board::Board *b)
             rotation,
             NULL,
             SDL_FLIP_NONE);
+        SDL_SetTextureAlphaMod(textures.pieces, UINT8_MAX);
 
         // slowly move average back to mouse position when mouse is stopped
         if (mouseAverageTotal != mouseCoordinate[0])
@@ -270,7 +279,7 @@ SDL_Rect Render::getPieceSrcRect(Piece p)
     case Pieces::PAWN: x = 5 * sixth; break;
     case Pieces::PAWN_EN_PASSANT: x = 5 * sixth; break;
     case Pieces::KNIGHT: x = 3 * sixth; break;
-    case Pieces::BISHOP: x = 3 * 6; break;
+    case Pieces::BISHOP: x = 2 * sixth; break;
     case Pieces::ROOK: x = 4 * sixth; break;
     case Pieces::ROOK_CASTLE: x = 4 * sixth; break;
     case Pieces::QUEEN: x = 1 * sixth; break;

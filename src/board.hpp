@@ -85,7 +85,10 @@ void movePiece(Board *b, Position initial, Position final);
 
 void setPiece(Board *b, Position p, Piece piece);
 
-// generate a compact position int
-Position generatePosition(uint8_t x, uint8_t y);
+// generate a position using the rank and file
+Position generatePosition(uint8_t file, uint8_t rank);
+
+// load a position from a string to a board
+void loadPosition(Board *b, const char *pos);
 
 } // namespace Board

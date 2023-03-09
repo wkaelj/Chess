@@ -2,6 +2,8 @@
 
 #include <assert.h>
 
+#include <string.h>
+
 namespace Board
 {
 
@@ -61,5 +63,72 @@ void movePiece(Board *b, Position initial, Position final)
 }
 
 int generateChecksum(Board *b) { return 0; }
+
+Piece getPieceFromChar(char c)
+{
+    switch (c)
+    {
+    case 'p': return Pieces::PAWN | 0x80;
+    case 'n': return Pieces::KNIGHT | 0x80;
+    case 'b': return Pieces::BISHOP | 0x80;
+    case 'r': return Pieces::ROOK | 0x80;
+    case 'q': return Pieces::QUEEN | 0x80;
+    case 'k': return Pieces::KING_CASTLE | 0x80;
+    case 'P': return Pieces::PAWN & 0x7f;
+    case 'N': return Pieces::KNIGHT & 0x7f;
+    case 'B': return Pieces::BISHOP & 0x7f;
+    case 'R': return Pieces::ROOK & 0x7f;
+    case 'Q': return Pieces::QUEEN & 0x7f;
+    case 'K': return Pieces::KING_CASTLE & 0x7f;
+    }
+    printf("Invalid piece '%c'", c);
+    return Pieces::BLANK;
+}
+void loadPosition(Board *b, const char *fen)
+{
+    //     size_t len  = strlen(fen);
+    //     uint8_t pos = 0;
+
+    //     size_t field = 0; // < 6
+    //     for (size_t i = 0; i < len; i++)
+    //     {
+    //         switch (fen[i])
+    //         {
+    //         case ' ': field++; break;
+    //         case '/': pos = pos + 8 / 8;
+    //             case ''
+    //         }
+    //     }
+    // Initialize tiles array to 0
+    memset(b->tiles, 0, sizeof(b->tiles));
+
+    int i = 0, j = 0;
+    while (*fen != '\0')
+    {
+        if (*fen == '/')
+        {
+            i++;
+            j = 0;
+        }
+        else if (isdigit(*fen))
+        {
+            j += (*fen - '0');
+        }
+        else if (*fen == ' ')
+        {
+            break;
+        }
+        else
+        {
+            int piece = getPieceFromChar(*fen);
+            if (piece != -1)
+            {
+                b->tiles[i * 8 + j] = piece;
+                j++;
+            }
+        }
+        fen++;
+    }
+}
 
 } // namespace Board
