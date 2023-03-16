@@ -1,55 +1,47 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
-
-#include "render/audio.hpp"
+#include <stdbool.h>
 
 typedef int8_t Piece;
-
-namespace Pieces
-{
 
 // negative peices are black
 enum
 {
-    BLANK = 0,
-    PAWN  = 1,
-    PAWN_EN_PASSANT, // can be captured en passant
-    KNIGHT,
-    BISHOP,
-    ROOK,
-    ROOK_CASTLE,
-    QUEEN,
-    KING,
-    KING_CASTLE,
-    PIECE_MAX,
+    PIECE_BLANK = 0,
+    PIECE_PAWN,
+    PIECE_KNIGHT,
+    PIECE_BISHOP,
+    PIECE_ROOK,
+    PIECE_QUEEN,
+    PIECE_KING,
+    PIECE_PIECE_MAX,
 };
 
-enum Colour
+typedef enum
 {
-    BLACK = 0,
-    WHITE = 1,
-    NONE,
-};
+    COLOUR_BLACK = 0,
+    COLOUR_WHITE = 1,
+    COLOUR_NONE,
+} Colour;
 
 // get the colour of a piece
-inline Pieces::Colour getColour(Piece p) { return (p & 0x80) ? WHITE : BLACK; }
+inline Colour getColour(Piece p)
+{
+    return (p & 0x80) ? COLOUR_WHITE : COLOUR_BLACK;
+}
 
 // set the colour of a piece
 inline void setColour(Piece *p, Colour c)
 {
     switch (c)
     {
-    case Colour::BLACK: *p &= 0x7f; break;
-    case Colour::WHITE: *p |= 0x80; break;
+    case COLOUR_BLACK: *p &= 0x7f; break;
+    case COLOUR_WHITE: *p |= 0x80; break;
     default: break;
     }
 }
-
-} // namespace Pieces
-
-namespace Board
-{
 
 // represents a pieces position
 typedef uint8_t Position;
@@ -60,21 +52,19 @@ Board goes from left to right and up
 8  --->
 0  --->
 */
-struct Board
+typedef struct
 {
     uint8_t tiles[64];
     Position lastMove[2];
 
-    struct
-    {
-        Audio::Sound *move;
-        Audio::Sound *capture;
-        Audio::Sound *check;
-    } sounds;
-};
+    int en_passant;
+    bool w_castle_k, w_castle_q;
+    bool b_castle_k, b_castle_q;
 
-Board createBoard(
-    Audio::Sound *move, Audio::Sound *capture, Audio::Sound *check);
+    size_t moveCount;
+} Board;
+
+Board createBoard();
 
 // create a checksum of the board in order to verify moves online
 int generateChecksum(Board *b);
@@ -90,5 +80,3 @@ Position generatePosition(uint8_t file, uint8_t rank);
 
 // load a position from a string to a board
 void loadPosition(Board *b, const char *pos);
-
-} // namespace Board

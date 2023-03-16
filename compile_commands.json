@@ -1,1 +1,122 @@
-[]
+[
+ {
+  "directory": "/home/kael/Code/Chess",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "bin/src/board.o",
+   "src/board.c",
+   "-std=c2x",
+   "-I/usr/include/SDL2",
+   "-D_REENTRANT",
+   "-DHWY_SHARED_DEFINE",
+   "-I/usr/include/webp",
+   "-Wall",
+   "-Wextra",
+   "-g",
+   "-Og"
+  ],
+  "file": "src/board.c"
+ },
+ {
+  "directory": "/home/kael/Code/Chess",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "bin/src/main.o",
+   "src/main.c",
+   "-std=c2x",
+   "-I/usr/include/SDL2",
+   "-D_REENTRANT",
+   "-DHWY_SHARED_DEFINE",
+   "-I/usr/include/webp",
+   "-Wall",
+   "-Wextra",
+   "-g",
+   "-Og"
+  ],
+  "file": "src/main.c"
+ },
+ {
+  "directory": "/home/kael/Code/Chess",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "bin/src/moves.o",
+   "src/moves.c",
+   "-std=c2x",
+   "-I/usr/include/SDL2",
+   "-D_REENTRANT",
+   "-DHWY_SHARED_DEFINE",
+   "-I/usr/include/webp",
+   "-Wall",
+   "-Wextra",
+   "-g",
+   "-Og"
+  ],
+  "file": "src/moves.c"
+ },
+ {
+  "directory": "/home/kael/Code/Chess",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "bin/src/render_backend.o",
+   "src/render_backend.c",
+   "-std=c2x",
+   "-I/usr/include/SDL2",
+   "-D_REENTRANT",
+   "-DHWY_SHARED_DEFINE",
+   "-I/usr/include/webp",
+   "-Wall",
+   "-Wextra",
+   "-g",
+   "-Og"
+  ],
+  "file": "src/render_backend.c"
+ },
+ {
+  "directory": "/home/kael/Code/Chess",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "bin/src/render/render_backend.o",
+   "src/render/render_backend.c",
+   "-std=c2x",
+   "-I/usr/include/SDL2",
+   "-D_REENTRANT",
+   "-DHWY_SHARED_DEFINE",
+   "-I/usr/include/webp",
+   "-Wall",
+   "-Wextra",
+   "-g",
+   "-Og"
+  ],
+  "file": "src/render/render_backend.c"
+ },
+ {
+  "directory": "/home/kael/Code/Chess",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "bin/src/render/render.o",
+   "src/render/render.c",
+   "-std=c2x",
+   "-I/usr/include/SDL2",
+   "-D_REENTRANT",
+   "-DHWY_SHARED_DEFINE",
+   "-I/usr/include/webp",
+   "-Wall",
+   "-Wextra",
+   "-g",
+   "-Og"
+  ],
+  "file": "src/render/render.c"
+ }
+]

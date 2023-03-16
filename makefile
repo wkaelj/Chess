@@ -2,15 +2,15 @@ UNAME=$(shell "uname -s")
 
 CC = gcc
 
-CFLAGS=-std=c++11 -I/usr/include/SDL2 -D_REENTRANT -DHWY_SHARED_DEFINE -I/usr/include/webp 
-CFLAGS += -Wall -Wextra -g -Og
-LDFLAGS=-lm -lSDL2 -lSDL2_image -lSDL2_mixer -lstdc++
+CFLAGS=-std=c2x -I/usr/include/SDL2 -D_REENTRANT -DHWY_SHARED_DEFINE -I/usr/include/webp 
+CFLAGS += -Wall -Wextra -g -Og -fsanitize=address
+LDFLAGS=-lm -lSDL2 -lSDL2_image -lSDL2_mixer -fsanitize=address
 
 BIN=bin
 EXEC=chess.x86_64
 
-SRC = $(wildcard src/*.cpp) $(wildcard src/**/*.cpp)
-OBJ = $(SRC:%.cpp=$(BIN)/%.o)
+SRC = $(wildcard src/*.c) $(wildcard src/**/*.c)
+OBJ = $(SRC:%.c=$(BIN)/%.o)
 
 .PHONY=dirs clean
 
@@ -26,5 +26,5 @@ clean:
 main: $(OBJ)
 	$(CC) $(CFLAGS) -o $(EXEC) $^ $(LDFLAGS)
 
-$(BIN)/%.o: %.cpp
+$(BIN)/%.o: %.c
 	$(CC) -c -o $@ $< $(CFLAGS)

@@ -1,106 +1,91 @@
-#include "moves.hpp"
+#include "moves.h"
+#include "board.h"
 
-#include <cassert>
+#include <assert.h>
 #include <math.h>
-
-namespace Moves
-{
+#include <stdio.h>
 
 bool withinBoard(int8_t position);
-void getLegalColumn(
-    Board::Board *b,
-    Board::Position p,
-    Board::Position *moves,
-    size_t *moveIndex);
+void getLegalColumn(Board *b, Position p, Position *moves, size_t *moveIndex);
 void getLegalRow(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
-    size_t *moveIndex);
+    Board *b, Position position, Position *moves, size_t *moveIndex);
 void getLegalDiagonals(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
-    size_t *moveIndex);
+    Board *b, Position position, Position *moves, size_t *moveIndex);
 void getLegalKnightMoves(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
-    size_t *moveIndex);
+    Board *b, Position position, Position *moves, size_t *moveIndex);
 void getLegalKingMoves(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
-    size_t *moveIndex);
+    Board *b, Position position, Position *moves, size_t *moveIndex);
 void getLegalPawnMoves(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
-    size_t *moveIndex);
+    Board *b, Position position, Position *moves, size_t *moveIndex);
 
-Pieces::Colour isCheck(Board::Board *b, Pieces::Colour colour, Move m);
-Pieces::Colour isCheck(Board::Board *b, Pieces::Colour colour);
-size_t getLegalMoves(Board::Board *b, Board::Position p, Board::Position *moves)
+Colour isCheckInternal(
+    Board *b,
+    Colour colour,
+    Move m,
+    Position *legalMoves,
+    size_t legalMoveCount);
+
+size_t getLegalMoves(Board *b, Position p, Position *moves)
 {
     size_t movesIndex = 0;
 
-    Piece piece = Board::getPiece(b, p);
+    Piece piece = getPiece(b, p);
     switch (piece & 0x7f)
     {
-    case Pieces::PAWN: getLegalPawnMoves(b, p, moves, &movesIndex); break;
-    case Pieces::BISHOP: getLegalDiagonals(b, p, moves, &movesIndex); break;
-    case Pieces::ROOK:
+    case PIECE_PAWN:
+        getLegalPawnMoves(b, p, moves, &movesIndex);
+        // handle en passant
+        break;
+    case PIECE_BISHOP: getLegalDiagonals(b, p, moves, &movesIndex); break;
+    case PIECE_ROOK:
         getLegalColumn(b, p, moves, &movesIndex);
         getLegalRow(b, p, moves, &movesIndex);
         break;
-    case Pieces::KNIGHT: getLegalKnightMoves(b, p, moves, &movesIndex); break;
-    case Pieces::KING: getLegalKingMoves(b, p, moves, &movesIndex); break;
-    case Pieces::KING_CASTLE:
-        getLegalKingMoves(b, p, moves, &movesIndex);
-        // handle castling
-        break;
+    case PIECE_KNIGHT: getLegalKnightMoves(b, p, moves, &movesIndex); break;
+    case PIECE_KING: getLegalKingMoves(b, p, moves, &movesIndex); break;
     default:
         getLegalColumn(b, p, moves, &movesIndex);
         getLegalRow(b, p, moves, &movesIndex);
         getLegalDiagonals(b, p, moves, &movesIndex);
         break;
     }
+
+    Colour colour = getColour(getPiece(b, p));
+    assert(colour != COLOUR_NONE);
+    for (size_t i = 0; i < movesIndex; i++)
+    {
+        Move m = {p, moves[i]};
+        if (isCheckInternal(b, colour, m, moves, movesIndex) == colour)
+            moves[i] = UINT8_MAX;
+    }
     return movesIndex;
 }
 
-bool move(Board::Board *b, Move m, Board::Position *moves, size_t moveCount)
+bool move(Board *b, Move m)
 {
+    assert(m[1] < 64 && m[0] < 64);
+    Position moves[32];
+    size_t moveCount = getLegalMoves(b, m[0], moves);
 
+    // ensure the move is legal
+    bool found = false;
     for (size_t i = 0; i < moveCount; i++)
     {
-        if (moves[i] == m[1])
+        if (moves[i] < 64 && moves[i] == m[1])
         {
-            Pieces::Colour movedColour =
-                Pieces::getColour(Board::getPiece(b, m[0]));
-            if (isCheck(b, movedColour, m) == movedColour)
-                return false;
-            // sounds
-            if ((Board::getPiece(b, m[1]) & 0x7f) != Pieces::BLANK)
-            {
-                if (b->sounds.capture)
-                    b->sounds.capture->play();
-            }
-            else
-            {
-                if (b->sounds.move)
-                    b->sounds.move->play();
-            }
-            Board::movePiece(b, m[0], m[1]);
-            b->lastMove[0] = m[0];
-            b->lastMove[1] = m[1];
-            if (isCheck(b, Pieces::Colour::BLACK) != Pieces::NONE)
-            {
-                printf("Check\n");
-            }
-            return true;
+            found = true;
+            break;
         }
     }
-    return false;
+    if (found == false)
+        return false;
+
+    // move the piece
+    movePiece(b, m[0], m[1]);
+    b->lastMove[0] = m[0];
+    b->lastMove[1] = m[1];
+    b->moveCount++;
+    return true;
 }
 
 //
@@ -108,51 +93,62 @@ bool move(Board::Board *b, Move m, Board::Position *moves, size_t moveCount)
 //
 
 // is check overload if no move needed
-Pieces::Colour isCheck(Board::Board *b, Pieces::Colour colour)
+Colour isCheck(Board *b, Colour colour)
 {
     Move m = {255, 255};
-    return isCheck(b, colour, m);
+    return isCheckM(b, colour, m);
 }
 
 // check if the king of colour c is in check. If so, it will return the
 // colour of the piece being checked. If the other king is checked, it will
 // return that king instead.
-Pieces::Colour isCheck(Board::Board *b, Pieces::Colour colour, Move m)
+Colour isCheckM(Board *b, Colour colour, Move m)
 {
+    Position legalMoves[32];
+    size_t legalMoveCount;
+    legalMoveCount = getLegalMoves(b, m[0], legalMoves);
+    return isCheckInternal(b, colour, m, legalMoves, legalMoveCount);
+}
+
+Colour isCheckInternal(
+    Board *b,
+    Colour colour,
+    Move m,
+    Position *legalMoves,
+    size_t legalMoveCount)
+{
+
     // make the move being tested, and store it so it can be moved back
     // this will probably cause a ton of problems in the future
-    Piece capturedPiece = Pieces::BLANK;
+    Piece capturedPiece = PIECE_BLANK;
     if (m[0] < 64 && m[1] < 64)
     {
-        capturedPiece = Board::getPiece(b, m[1]);
-        Board::movePiece(b, m[0], m[1]);
+        capturedPiece = getPiece(b, m[1]);
+        movePiece(b, m[0], m[1]);
     }
 
-    Pieces::Colour checkedColour = Pieces::Colour::NONE;
+    Colour checkedColour = COLOUR_NONE;
     // iterate through the entire board to see if any pieces have check
-    for (Board::Position position = 0; position < 64 && checkedColour != colour;
+    for (Position position = 0; position < 64 && checkedColour != colour;
          position++)
     {
-        Piece movedPiece = Board::getPiece(b, position);
+        Piece movedPiece = getPiece(b, position);
         // if the moved piece is not blank get the legal moves and see if any of
         // them check
-        if ((movedPiece & 0x7f) != Pieces::BLANK)
+        if ((movedPiece & 0x7f) != PIECE_BLANK)
         {
-            Board::Position legalMoves[64];
-            size_t legalMoveCount = getLegalMoves(b, position, legalMoves);
             for (size_t move = 0; move < legalMoveCount; move++)
             {
                 // if a legal move attacks a king it is check
                 // do not need to check colour, as moving onto the own colour
                 // king is not allowed by the rules
-                Piece attackedPiece = Board::getPiece(b, legalMoves[move]);
-                if ((attackedPiece & 0x7f) == Pieces::KING ||
-                    (attackedPiece & 0x7f) == Pieces::KING_CASTLE)
+                Piece attackedPiece = getPiece(b, legalMoves[move]);
+                if ((attackedPiece & 0x7f) == PIECE_KING)
                 {
-                    Pieces::Colour c = Pieces::getColour(attackedPiece);
+                    Colour c = getColour(attackedPiece);
                     if (c == colour)
                         checkedColour = c;
-                    else if (checkedColour == Pieces::Colour::NONE)
+                    else if (checkedColour == COLOUR_NONE)
                         checkedColour = c;
                 }
             }
@@ -162,27 +158,22 @@ Pieces::Colour isCheck(Board::Board *b, Pieces::Colour colour, Move m)
     // move piece back
     if (m[0] < 64 && m[1] < 64)
     {
-        Board::movePiece(b, m[1], m[0]);
-        Board::setPiece(b, m[1], capturedPiece);
+        movePiece(b, m[1], m[0]);
+        setPiece(b, m[1], capturedPiece);
     }
 
     return checkedColour;
 }
-
 // assert a position is within the board
 bool withinBoard(int8_t position) { return position >= 0 && position < 64; }
 
 // if true stop looping
 // check if a piece has hit another piece while moving
 bool checkIntercept(
-    Board::Board *b,
-    Board::Position p,
-    Pieces::Colour c,
-    Board::Position *moves,
-    size_t *moveIndex)
+    Board *b, Position p, Colour c, Position *moves, size_t *moveIndex)
 {
-    Piece piece = Board::getPiece(b, p);
-    if (piece == Pieces::BLANK)
+    Piece piece = getPiece(b, p);
+    if (piece == PIECE_BLANK)
     {
         if (moves)
             moves[*moveIndex] = p;
@@ -192,7 +183,7 @@ bool checkIntercept(
     else
     {
         // if a capture is legal, add it then exit the loop
-        if (Pieces::getColour(piece) != c)
+        if (getColour(piece) != c)
         {
             if (moves)
                 moves[*moveIndex] = p;
@@ -202,15 +193,11 @@ bool checkIntercept(
     }
 }
 
-void getLegalColumn(
-    Board::Board *b,
-    Board::Position p,
-    Board::Position *moves,
-    size_t *moveIndex)
+void getLegalColumn(Board *b, Position p, Position *moves, size_t *moveIndex)
 {
     assert(b && moveIndex);
     assert(*moveIndex < 64);
-    Pieces::Colour pieceColour = Pieces::getColour(Board::getPiece(b, p));
+    Colour pieceColour = getColour(getPiece(b, p));
 
     // count moves down
     for (uint8_t i = p + 8; withinBoard(i); i += 8)
@@ -228,16 +215,11 @@ void getLegalColumn(
 }
 
 void getLegalRow(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
-    size_t *moveIndex)
+    Board *b, Position position, Position *moves, size_t *moveIndex)
 {
     assert(b && moveIndex);
     assert(*moveIndex < 64);
-
-    Pieces::Colour pieceColour =
-        Pieces::getColour(Board::getPiece(b, position));
+    Colour pieceColour = getColour(getPiece(b, position));
 
     // count moves right
     for (int8_t i = position + 1;
@@ -259,13 +241,9 @@ void getLegalRow(
 }
 
 void getLegalDiagonals(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
-    size_t *moveIndex)
+    Board *b, Position position, Position *moves, size_t *moveIndex)
 {
-    Pieces::Colour pieceColour =
-        Pieces::getColour(Board::getPiece(b, position)); // down and right
+    Colour pieceColour = getColour(getPiece(b, position)); // down and right
 
     // down right
     for (int8_t i = position + 9; i % 8 != 0 && withinBoard(i); i += 9)
@@ -295,19 +273,19 @@ void getLegalDiagonals(
 
 // check if a square can be moved to, and if so add it to the move list
 void handleMoveSquare(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
+    Board *b,
+    Position position,
+    Position *moves,
     size_t *moveIndex,
-    Pieces::Colour pieceColour,
+    Colour pieceColour,
     uint8_t move)
 {
     // ensure move is within board, and does not wrap corner
     if (!withinBoard(position + move))
         return;
 
-    Piece p = Board::getPiece(b, position + move);
-    if (p == Pieces::BLANK || Pieces::getColour(p) != pieceColour)
+    Piece p = getPiece(b, position + move);
+    if (p == PIECE_BLANK || getColour(p) != pieceColour)
     {
         moves[*moveIndex] = position + move;
         *moveIndex += 1;
@@ -315,14 +293,10 @@ void handleMoveSquare(
 }
 
 void getLegalKnightMoves(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
-    size_t *moveIndex)
+    Board *b, Position position, Position *moves, size_t *moveIndex)
 {
 
-    Pieces::Colour pieceColour =
-        Pieces::getColour(Board::getPiece(b, position));
+    Colour pieceColour = getColour(getPiece(b, position));
 
     // left 2
     if (position % 8 != 0 && position % 8 != 1)
@@ -349,15 +323,12 @@ void getLegalKnightMoves(
 }
 
 void getLegalKingMoves(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
-    size_t *moveIndex)
+    Board *b, Position position, Position *moves, size_t *moveIndex)
 {
-    const Piece p = Board::getPiece(b, position);
-    assert((p & 0x7f) == Pieces::KING || (p & 0x7f) == Pieces::KING_CASTLE);
+    const Piece p = getPiece(b, position);
+    assert((p & 0x7f) == PIECE_KING);
 
-    Pieces::Colour colour = Pieces::getColour(p);
+    Colour colour = getColour(p);
     handleMoveSquare(b, position, moves, moveIndex, colour, -8);
     handleMoveSquare(b, position, moves, moveIndex, colour, 8);
     // left
@@ -374,26 +345,39 @@ void getLegalKingMoves(
         handleMoveSquare(b, position, moves, moveIndex, colour, 9);
         handleMoveSquare(b, position, moves, moveIndex, colour, -7);
     }
+
+    // castling
+    if (colour == COLOUR_WHITE && b->w_castle_k)
+        ;
 }
 
 void getLegalPawnMoves(
-    Board::Board *b,
-    Board::Position position,
-    Board::Position *moves,
-    size_t *moveIndex)
+    Board *b, Position position, Position *moves, size_t *moveIndex)
 {
-    Piece p = Board::getPiece(b, position);
-    assert((p & 0x7f) == Pieces::PAWN);
+    Piece p = getPiece(b, position);
+    assert((p & 0x7f) == PIECE_PAWN);
 
-    Pieces::Colour c = Pieces::getColour(p);
-    if (c == Pieces::Colour::WHITE)
-    {
-        handleMoveSquare(b, position, moves, moveIndex, c, 8);
-    }
-    if (c == Pieces::Colour::BLACK)
-    {
-        handleMoveSquare(b, position, moves, moveIndex, c, -8);
-    }
+    Colour c = getColour(p);
+    assert(c != COLOUR_NONE);
+    int direction;
+    if (c == COLOUR_WHITE)
+        direction = -1;
+    if (c == COLOUR_BLACK)
+        direction = 1;
+
+    // if there is no piece in front of the pawn, it is a legal move
+    const int forward = 8 * direction;
+    if (withinBoard(position + forward) &&
+        getPiece(b, position + forward) == PIECE_BLANK)
+        handleMoveSquare(b, position, moves, moveIndex, c, forward);
+    // if there is a piece to one side of the pawn, consider the move.
+    const int side1 = 9 * direction;
+    if (withinBoard(position + side1) &&
+        getPiece(b, position + side1) != PIECE_BLANK)
+        handleMoveSquare(b, position, moves, moveIndex, c, side1);
+    // if there is a piece to the other side, consider it a move
+    const int side2 = 7 * direction;
+    if (withinBoard(position + side2) &&
+        getPiece(b, position + side2) != PIECE_BLANK)
+        handleMoveSquare(b, position, moves, moveIndex, c, side2);
 }
-
-} // namespace Moves
