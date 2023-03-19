@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 bool withinBoard(int8_t position);
 void getLegalColumn(Board *b, Position p, Position *moves, size_t *moveIndex);
@@ -30,6 +31,10 @@ size_t getLegalMoves(Board *b, Position p, Position *moves)
     size_t movesIndex = 0;
 
     Piece piece = getPiece(b, p);
+
+    // don't allow moves for wrong colour
+    if (getColour(piece) != b->turn)
+        return 0;
     switch (piece & 0x7f)
     {
     case PIECE_PAWN:
@@ -80,11 +85,41 @@ bool move(Board *b, Move m)
     if (found == false)
         return false;
 
+    // get data for special move testing
+    Piece movedPiece     = getPiece(b, m[0]);
+    Piece capturedPiece  = getPiece(b, m[1]);
+    Colour colour        = getColour(movedPiece);
+    int move             = m[1] - m[0];
+    int startingPosition = m[0];
+    int endingPosition   = m[1];
+
     // move the piece
     movePiece(b, m[0], m[1]);
     b->lastMove[0] = m[0];
     b->lastMove[1] = m[1];
     b->moveCount++;
+    b->turn = b->turn == COLOUR_WHITE ? COLOUR_BLACK : COLOUR_WHITE;
+
+    // check for special moves
+
+    // double pawn moves
+    if ((movedPiece & 0x7f) == PIECE_PAWN && abs(move) == 16)
+    {
+        b->en_passant = startingPosition % 8;
+    }
+
+    // en passant captures
+    if ((movedPiece & 0x7f) == PIECE_PAWN &&
+        endingPosition % 8 == b->en_passant &&
+        endingPosition / 8 == (colour == COLOUR_WHITE ? 2 : 5))
+    {
+        // delete captured pawn
+        unsigned captureTile =
+            endingPosition + (colour == COLOUR_WHITE ? 8 : -8);
+        assert(getColour(getPiece(b, captureTile)) != colour);
+        setPiece(b, captureTile, PIECE_BLANK);
+    }
+
     return true;
 }
 
@@ -272,7 +307,7 @@ void getLegalDiagonals(
 }
 
 // check if a square can be moved to, and if so add it to the move list
-void handleMoveSquare(
+bool handleMoveSquare(
     Board *b,
     Position position,
     Position *moves,
@@ -282,14 +317,16 @@ void handleMoveSquare(
 {
     // ensure move is within board, and does not wrap corner
     if (!withinBoard(position + move))
-        return;
+        return false;
 
     Piece p = getPiece(b, position + move);
     if (p == PIECE_BLANK || getColour(p) != pieceColour)
     {
         moves[*moveIndex] = position + move;
         *moveIndex += 1;
+        return true;
     }
+    return false;
 }
 
 void getLegalKnightMoves(
@@ -380,4 +417,22 @@ void getLegalPawnMoves(
     if (withinBoard(position + side2) &&
         getPiece(b, position + side2) != PIECE_BLANK)
         handleMoveSquare(b, position, moves, moveIndex, c, side2);
+
+    // move twice on first move
+    if ((direction == -1 && position / 8 == 6) ||
+        (direction == 1 && position / 8 == 1))
+        handleMoveSquare(b, position, moves, moveIndex, c, 16 * direction);
+
+    // en passant captures
+    int file             = position % 8;
+    unsigned captureTile = (direction == -1 ? 2 : 5) * 8 + b->en_passant;
+    bool correctFile     = abs(file - b->en_passant) == 1;
+    bool correctRank     = (direction == 1 && position / 8 == 4) ||
+                       (direction == -1 && position / 8 == 3);
+    bool unobstructed = (getPiece(b, captureTile) & 0x7f) == PIECE_BLANK;
+    if (correctFile && correctRank && unobstructed)
+    {
+        handleMoveSquare(
+            b, position, moves, moveIndex, c, captureTile - position);
+    }
 }
