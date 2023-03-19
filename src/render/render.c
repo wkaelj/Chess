@@ -43,12 +43,12 @@ struct BoardRender
 };
 
 // drawing helpers
-void drawBoard(BoardRender *r, Board *b, RenderRect *rect);
+void drawBoard(BoardRender *r, Board *b, RenderRect *rect, Colour playerColour);
 RenderRect getPieceSrcRect(BoardRender *r, Piece p);
 RenderRect getPieceDestRect(RenderRect *boardRect, uint8_t index);
-RenderRect calculateBoardRect(RenderWindow *window);
-uint8_t getMouseTile(
-    Render *render, RenderRect *boardRect); // get the tile the mouse is over
+// calculate the rect for the largest square that could fit in a rectangle
+RenderRect calculateBoardRect(RenderRect *frame);
+uint8_t getMouseTile(Render *render, RenderRect *boardRect);
 
 BoardRender *create_board_render(
     const char *boardTexture,
@@ -90,7 +90,10 @@ BoardRender *create_board_render(
     render_set_texture_alpha(b->textures.legalMove, 0x80);
     assert(b->textures.board && b->textures.pieces);
 
-    b->boardRect = calculateBoardRect(b->window);
+    RenderRect windowRect = {.x = 0, .y = 0};
+    render_get_window_size(b->window, &windowRect.w, &windowRect.h);
+
+    b->boardRect = calculateBoardRect(&windowRect);
 
     return b;
 }
@@ -117,15 +120,19 @@ bool board_render_quit(const BoardRender *r) { return r->shouldQuit; }
 void board_render_update(BoardRender *r)
 {
 
+    RenderRect windowRect = {.x = 0, .y = 0};
+
     RenderEvent e = render_poll_events(r->render);
     switch (e)
     {
     case RENDER_EVENT_NONE: break;
     case RENDER_EVENT_QUIT: r->shouldQuit = true; break;
     case RENDER_EVENT_WINDOW_RESIZE:
-        r->boardRect = calculateBoardRect(r->window);
-        printf("Window Resized!\n");
+        render_get_window_size(r->window, &windowRect.w, &windowRect.h);
+
+        r->boardRect = calculateBoardRect(&windowRect);
         break;
+    default: break;
     }
 
     r->lmb = render_get_cursor_state(r->render);
@@ -133,14 +140,55 @@ void board_render_update(BoardRender *r)
 
 void board_render_draw(BoardRender *render, Board *b)
 {
-
     assert(b);
 
     render_clear(render->render);
 
+    int window_w, window_h;
+    render_get_window_size(render->window, &window_w, &window_h);
+
+    size_t padding = 10;
+
+    // padding must be even!!!
+    if (padding % 2 != 0)
+        padding++;
+
+    RenderRect board1 = {
+        .x = padding / 2,
+        .y = padding / 2,
+        .w = window_w / 2 - padding,
+        .h = window_h - padding,
+    };
+
+    RenderRect board2 = {
+        .x = board1.w + padding,
+        .y = padding / 2,
+        .w = board1.w,
+        .h = board1.h,
+    };
+    // this shouldn't break, because board1 shouldn't be changed until after the
+    // function returns
+    board1 = calculateBoardRect(&board1);
+    board2 = calculateBoardRect(&board2);
+
+    drawBoard(render, b, &board1, render->playerColour);
+    drawBoard(
+        render,
+        b,
+        &board2,
+        render->playerColour == COLOUR_WHITE ? COLOUR_BLACK : COLOUR_WHITE);
+
+    const uint8_t background = 0x0f;
+    render_set_colour(render->render, background, background, background, 0xff);
+    render_submit(render->render);
+}
+
+void drawBoard(
+    BoardRender *render, Board *b, RenderRect *boardRect, Colour playerColour)
+{
     // draw board
     render_draw_texture(
-        render->render, &render->boardRect, NULL, render->textures.board, 0.f);
+        render->render, boardRect, NULL, render->textures.board, 0.f);
 
     int mouse_x, mouse_y;
     render_get_cursor_pos(render->render, &mouse_x, &mouse_y);
@@ -149,8 +197,8 @@ void board_render_draw(BoardRender *render, Board *b)
     if (b->lastMove[0] < 64)
     {
         RenderRect lastmoveRects[2] = {
-            getPieceDestRect(&render->boardRect, b->lastMove[0]),
-            getPieceDestRect(&render->boardRect, b->lastMove[1])};
+            getPieceDestRect(boardRect, b->lastMove[0]),
+            getPieceDestRect(boardRect, b->lastMove[1])};
 
         if (render_set_colour(render->render, 0x1f, 0xff, 0x00, 0x80) ==
             RENDER_FAILURE)
@@ -161,25 +209,32 @@ void board_render_draw(BoardRender *render, Board *b)
     }
 
     // highlight mouse hover
-    uint8_t mouseTile = getMouseTile(render->render, &render->boardRect);
+    uint8_t mouseTile = getMouseTile(render->render, boardRect);
+    uint8_t mousePieceTile =
+        playerColour == COLOUR_BLACK ? 63 - mouseTile : mouseTile;
     if (mouseTile < 64)
     {
-        RenderRect mouseRect = getPieceDestRect(&render->boardRect, mouseTile);
+        RenderRect mouseRect = getPieceDestRect(boardRect, mouseTile);
         render_draw_texture(
             render->render, &mouseRect, NULL, render->textures.hover, 0.f);
     }
 
+    assert(playerColour == COLOUR_WHITE || playerColour == COLOUR_BLACK);
     // draw pieces
     for (uint8_t i = 0; i < array_length(b->tiles); i++)
     {
         // draw the board in reverse order if the player is black
-        Piece p = render->playerColour == COLOUR_WHITE ? getPiece(b, i)
-                                                       : getPiece(b, 63 - i);
+        Piece p =
+            playerColour == COLOUR_WHITE ? getPiece(b, i) : getPiece(b, 63 - i);
         if ((p & 0x7f) != PIECE_BLANK)
         {
-            RenderRect destRect = getPieceDestRect(&render->boardRect, i);
+            RenderRect destRect = getPieceDestRect(boardRect, i);
             RenderRect srcRect  = getPieceSrcRect(render, p);
-            if (render->hoveredPiece != PIECE_BLANK && i == render->hoveredTile)
+
+            size_t hovertile = playerColour == COLOUR_BLACK
+                                   ? 63 - render->hoveredTile
+                                   : render->hoveredTile;
+            if (render->hoveredPiece != PIECE_BLANK && i == hovertile)
                 render_set_texture_alpha(render->textures.pieces, 0x80);
             render_draw_texture(
                 render->render,
@@ -187,7 +242,7 @@ void board_render_draw(BoardRender *render, Board *b)
                 &srcRect,
                 render->textures.pieces,
                 0);
-            if (render->hoveredPiece != PIECE_BLANK && i == render->hoveredTile)
+            if (render->hoveredPiece != PIECE_BLANK && i == hovertile)
                 render_set_texture_alpha(render->textures.pieces, 0xff);
         }
     }
@@ -195,12 +250,12 @@ void board_render_draw(BoardRender *render, Board *b)
     // get hovered piece
     if (mouseTile < 64 && render->lmb == RENDER_CURSOR_PRESSED)
     {
-        render->hoveredPiece = getPiece(b, mouseTile);
-        render->hoveredTile  = mouseTile;
+        render->hoveredPiece = getPiece(b, mousePieceTile);
+        render->hoveredTile  = mousePieceTile;
         if (render->hoveredPiece != PIECE_BLANK)
         {
             render->legalMoveCount =
-                getLegalMoves(b, mouseTile, render->legalMoves);
+                getLegalMoves(b, mousePieceTile, render->legalMoves);
             // reset mouse average
             for (size_t i = 0; i < MOUSE_AVERAGE_SIZE; i++)
                 render->mouseAverage[i] = mouse_x;
@@ -208,13 +263,13 @@ void board_render_draw(BoardRender *render, Board *b)
     }
 
     // report move attempt
-    if (render->lmb == RENDER_CURSOR_RELEASED && mouseTile < 64 &&
+    if (render->lmb == RENDER_CURSOR_RELEASED && mousePieceTile < 64 &&
         render->hoveredPiece != PIECE_BLANK)
     {
-        if (mouseTile != render->hoveredTile)
+        if (mousePieceTile != render->hoveredTile)
         {
-            Move m = {render->hoveredTile, mouseTile};
-            move(b, m, render->legalMoves, render->legalMoveCount);
+            Move m = {render->hoveredTile, mousePieceTile};
+            move(b, m);
         }
         render->hoveredPiece   = PIECE_BLANK;
         render->legalMoveCount = 0;
@@ -227,8 +282,9 @@ void board_render_draw(BoardRender *render, Board *b)
         // getLegalMoves now auto removes them to avoid per frame testing
         if (render->legalMoves[i] < 64)
         {
-            RenderRect tileRect =
-                getPieceDestRect(&render->boardRect, render->legalMoves[i]);
+            Position move       = render->legalMoves[i];
+            RenderRect tileRect = getPieceDestRect(
+                boardRect, playerColour == COLOUR_BLACK ? 63 - move : move);
             render_draw_texture(
                 render->render,
                 &tileRect,
@@ -244,10 +300,10 @@ void board_render_draw(BoardRender *render, Board *b)
          render->lmb == RENDER_CURSOR_DOWN))
     {
         RenderRect dragPieceRect = {
-            .x = mouse_x - render->boardRect.w / 12,
-            .y = mouse_y - render->boardRect.w / 12,
-            .w = render->boardRect.w / 6,
-            .h = render->boardRect.h / 6,
+            .x = mouse_x - boardRect->w / 12,
+            .y = mouse_y - boardRect->w / 12,
+            .w = boardRect->w / 6,
+            .h = boardRect->h / 6,
         };
         // calculate average mouse position
         float mouseAverageTotal = 0xf;
@@ -277,18 +333,6 @@ void board_render_draw(BoardRender *render, Board *b)
                 (render->mouseAverageIndex + 1) % MOUSE_AVERAGE_SIZE;
         }
     }
-
-    const uint8_t background = 0x0f;
-
-    render_set_colour(render->render, background, background, background, 0xff);
-
-    render_submit(render->render);
-}
-
-void drawBoard(BoardRender *r, Board *b, RenderRect *rect)
-{
-    // draw a board
-    return;
 }
 
 RenderRect getPieceSrcRect(BoardRender *r, Piece p)
@@ -349,10 +393,9 @@ RenderRect getPieceDestRect(RenderRect *boardRect, uint8_t index)
     };
 }
 
-RenderRect calculateBoardRect(RenderWindow *window)
+RenderRect calculateBoardRect(RenderRect *frame)
 {
-    int windowSize[2];
-    render_get_window_size(window, &windowSize[0], &windowSize[1]);
+    int windowSize[2] = {frame->w, frame->h};
 
     // draw board
     int min = windowSize[0] < windowSize[1] ? windowSize[0] : windowSize[1];
@@ -361,8 +404,8 @@ RenderRect calculateBoardRect(RenderWindow *window)
     if (min == windowSize[0])
     {
         boardRect = (RenderRect){
-            .x = 0,
-            .y = (windowSize[1] - min) / 2,
+            .x = 0 + frame->x,
+            .y = (windowSize[1] - min) / 2 + frame->y,
             .w = min,
             .h = min,
         };
@@ -370,8 +413,8 @@ RenderRect calculateBoardRect(RenderWindow *window)
     else
     {
         boardRect = (RenderRect){
-            .x = (windowSize[0] - min) / 2,
-            .y = 0,
+            .x = (windowSize[0] - min) / 2 + frame->x,
+            .y = 0 + frame->y,
             .w = min,
             .h = min,
         };
@@ -382,7 +425,6 @@ RenderRect calculateBoardRect(RenderWindow *window)
 
 uint8_t getMouseTile(Render *render, RenderRect *boardRect)
 {
-
     int mouse_x, mouse_y;
     render_get_cursor_pos(render, &mouse_x, &mouse_y);
     assert(boardRect->w == boardRect->h);

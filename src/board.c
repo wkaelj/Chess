@@ -16,6 +16,7 @@ Board createBoard()
         b.tiles[i] = PIECE_BLANK;
     b.lastMove[0] = UINT8_MAX;
     b.lastMove[1] = UINT8_MAX;
+    b.turn        = COLOUR_WHITE;
 
     return b;
 }

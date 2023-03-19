@@ -61,6 +61,8 @@ typedef struct
     bool w_castle_k, w_castle_q;
     bool b_castle_k, b_castle_q;
 
+    Colour turn;
+
     size_t moveCount;
 } Board;
 
